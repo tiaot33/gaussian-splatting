@@ -8,7 +8,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 # Install miniconda
-ENV CONDA_DIR /opt/conda
+ENV CONDA_DIR=/opt/conda
 RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O ~/miniconda.sh && \
     /bin/bash ~/miniconda.sh -b -p /opt/conda
 
@@ -20,14 +20,18 @@ COPY ./ ./
 
 ENV TORCH_CUDA_ARCH_LIST="6.0;6.1;7.0;7.5;8.0;8.6;8.9;9.0+PTX"
 
-RUN conda update -n base conda
-RUN conda install -n base conda-libmamba-solver
+# Accept Anaconda TOS for default channels to enable non-interactive builds
+RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main \
+    && conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+
+RUN conda update -n base -y conda
+RUN conda install -n base -y conda-libmamba-solver
 RUN conda config --set solver libmamba
 RUN conda env create -f environment.yml
 RUN conda init bash
 #RUN echo "conda activate gaussian_splatting" >> ~/.bashrc
 SHELL ["conda", "run", "-n", "gaussian_splatting", "/bin/bash", "-c"]
-RUN conda install jupyter colmap
+RUN conda install -y jupyter colmap
 RUN conda remove ffmpeg -y
 
 WORKDIR /root/
