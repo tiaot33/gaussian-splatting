@@ -44,9 +44,12 @@ WORKDIR /root/gaussian_splatting/submodules/fused-ssim
 RUN pip install .
 WORKDIR /root/gaussian_splatting
 RUN pip install opencv-python joblib
-RUN conda install -y jupyter colmap
+RUN conda install -y colmap
 RUN conda remove ffmpeg -y
 
 WORKDIR /root/
 
-ENTRYPOINT ["conda", "run", "--no-capture-output", "-n", "gaussian_splatting", "jupyter", "notebook", "--ip=0.0.0.0", "--port=8888", "--allow-root"]
+# Make the image generic: no default service is started.
+# Use `docker run -it <image> bash` for an interactive shell,
+# or append commands (optionally via `conda run -n gaussian_splatting`).
+CMD ["bash"]
