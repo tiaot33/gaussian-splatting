@@ -25,8 +25,11 @@ jobs:
       attestations: write
 
     steps:
-      - name: Checkout
+      - name: Checkout (with submodules)
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          submodules: recursive
 
       - name: Log in to GHCR
         if: github.event_name != 'pull_request'
