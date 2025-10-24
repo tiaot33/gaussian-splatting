@@ -33,10 +33,15 @@ RUN conda create -n gaussian_splatting -y python=3.7.13 pip=22.3.1 \
 RUN conda init bash
 #RUN echo "conda activate gaussian_splatting" >> ~/.bashrc
 SHELL ["conda", "run", "-n", "gaussian_splatting", "/bin/bash", "-c"]
-RUN pip install /root/gaussian_splatting/submodules/diff-gaussian-rasterization \
-    /root/gaussian_splatting/submodules/simple-knn \
-    /root/gaussian_splatting/submodules/fused-ssim \
-    opencv-python joblib
+RUN pip install -U pip setuptools wheel
+WORKDIR /root/gaussian_splatting/submodules/diff-gaussian-rasterization
+RUN pip install .
+WORKDIR /root/gaussian_splatting/submodules/simple-knn
+RUN pip install .
+WORKDIR /root/gaussian_splatting/submodules/fused-ssim
+RUN pip install .
+WORKDIR /root/gaussian_splatting
+RUN pip install opencv-python joblib
 RUN conda install -y jupyter colmap
 RUN conda remove ffmpeg -y
 
