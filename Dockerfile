@@ -18,7 +18,9 @@ ENV PATH=$CONDA_DIR/bin:$PATH
 WORKDIR /root/gaussian_splatting
 COPY ./ ./
 
-ENV TORCH_CUDA_ARCH_LIST="6.0;6.1;7.0;7.5;8.0;8.6;8.9;9.0+PTX"
+# Limit to architectures supported by PyTorch 1.12/CUDA 11.6 toolchain
+# Avoid unknown arch errors during extension builds (e.g., 8.9, 9.0+PTX)
+ENV TORCH_CUDA_ARCH_LIST="6.0;6.1;7.0;7.5;8.0;8.6"
 
 # Accept Anaconda TOS for default channels to enable non-interactive builds
 RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main \
