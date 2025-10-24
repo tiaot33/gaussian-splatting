@@ -27,10 +27,16 @@ RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkg
 RUN conda update -n base -y conda
 RUN conda install -n base -y conda-libmamba-solver
 RUN conda config --set solver libmamba
-RUN conda env create -f environment.yml
+RUN conda create -n gaussian_splatting -y python=3.7.13 pip=22.3.1 \
+    && conda install -n gaussian_splatting -y -c pytorch -c conda-forge -c defaults \
+        pytorch=1.12.1 torchvision=0.13.1 torchaudio=0.12.1 cudatoolkit=11.6 plyfile tqdm
 RUN conda init bash
 #RUN echo "conda activate gaussian_splatting" >> ~/.bashrc
 SHELL ["conda", "run", "-n", "gaussian_splatting", "/bin/bash", "-c"]
+RUN pip install /root/gaussian_splatting/submodules/diff-gaussian-rasterization \
+    /root/gaussian_splatting/submodules/simple-knn \
+    /root/gaussian_splatting/submodules/fused-ssim \
+    opencv-python joblib
 RUN conda install -y jupyter colmap
 RUN conda remove ffmpeg -y
 
