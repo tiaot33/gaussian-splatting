@@ -1,6 +1,7 @@
-FROM nvidia/cuda:11.6.2-devel-ubuntu20.04
+# ---------- builder stage ----------
+FROM nvidia/cuda:11.6.2-devel-ubuntu20.04 AS builder
 
-# Install base utilities
+# Install base utilities for building (NVCC, compilers present in devel image)
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -22,7 +23,7 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86
 # Put conda in path so we can use conda activate
 ENV PATH=$CONDA_DIR/bin:$PATH
 
-WORKDIR /root/gaussian_splatting
+WORKDIR /build/gaussian_splatting
 COPY ./ ./
 
 # Limit to architectures supported by PyTorch 1.12/CUDA 11.6 toolchain
@@ -45,14 +46,49 @@ RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkg
 RUN conda init bash
 SHELL ["conda", "run", "-n", "gaussian_splatting", "/bin/bash", "-c"]
 
-# Python deps (no cache) and local CUDA extensions
+# Build wheels for CUDA extensions and prepare environment content
 RUN pip install --no-cache-dir -U pip setuptools wheel \
-    && pip install --no-cache-dir -e ./submodules/diff-gaussian-rasterization \
-    && pip install --no-cache-dir -e ./submodules/simple-knn \
-    && pip install --no-cache-dir -e ./submodules/fused-ssim \
     && pip install --no-cache-dir opencv-python joblib \
     && conda install -y conda-forge::colmap \
     && conda remove -y ffmpeg \
+    && mkdir -p /tmp/wheels \
+    && cd submodules/diff-gaussian-rasterization && pip wheel . -w /tmp/wheels && cd - \
+    && cd submodules/simple-knn && pip wheel . -w /tmp/wheels && cd - \
+    && cd submodules/fused-ssim && pip wheel . -w /tmp/wheels && cd - \
+    && pip cache purge || true \
+    && conda clean -afy \
+    && rm -rf /root/.cache
+
+
+# ---------- runtime stage ----------
+FROM nvidia/cuda:11.6.2-runtime-ubuntu20.04 AS runtime
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libgl1 \
+        libglib2.0-0 \
+        ffmpeg \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy prebuilt conda env and wheels from builder
+COPY --from=builder /opt/conda /opt/conda
+COPY --from=builder /tmp/wheels /tmp/wheels
+
+# PATH for conda tools
+ENV PATH=/opt/conda/bin:$PATH
+
+WORKDIR /root/gaussian_splatting
+COPY ./ ./
+
+# Ensure conda shell available for subsequent commands
+RUN conda init bash
+SHELL ["conda", "run", "-n", "gaussian_splatting", "/bin/bash", "-c"]
+
+# Install built CUDA extension wheels into the copied env
+RUN pip install --no-cache-dir /tmp/wheels/*.whl \
+    && rm -rf /tmp/wheels \
     && pip cache purge || true \
     && conda clean -afy \
     && rm -rf /root/.cache
