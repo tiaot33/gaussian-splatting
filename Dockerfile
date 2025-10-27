@@ -44,7 +44,7 @@ WORKDIR /root/gaussian_splatting/submodules/fused-ssim
 RUN pip install .
 WORKDIR /root/gaussian_splatting
 RUN pip install opencv-python joblib
-RUN conda install -y colmap
+RUN conda install -y conda-forge::colmap
 RUN conda remove ffmpeg -y
 
 WORKDIR /root/
