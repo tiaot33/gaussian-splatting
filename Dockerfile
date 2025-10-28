@@ -54,10 +54,10 @@ RUN pip install --no-cache-dir -U pip setuptools wheel \
     && conda config --set channel_priority strict \
     && conda install -y -c conda-forge 'colmap=*=*gpu*' \
     && conda remove -y ffmpeg \
-    && mkdir -p /tmp/wheels \
-    && cd submodules/diff-gaussian-rasterization && pip wheel . -w /tmp/wheels && cd - \
-    && cd submodules/simple-knn && pip wheel . -w /tmp/wheels && cd - \
-    && cd submodules/fused-ssim && pip wheel . -w /tmp/wheels && cd - \
+    && mkdir -p /opt/wheels \
+    && cd submodules/diff-gaussian-rasterization && pip wheel . -w /opt/wheels && cd - \
+    && cd submodules/simple-knn && pip wheel . -w /opt/wheels && cd - \
+    && cd submodules/fused-ssim && pip wheel . -w /opt/wheels && cd - \
     && pip cache purge || true \
     && conda clean -afy \
     && rm -rf /root/.cache
@@ -86,7 +86,7 @@ RUN mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
 
 # Copy prebuilt conda env and wheels from builder
 COPY --from=builder /opt/conda /opt/conda
-COPY --from=builder /tmp/wheels /tmp/wheels
+COPY --from=builder /opt/wheels /opt/wheels
 
 # PATH for conda tools
 ENV PATH=/opt/conda/bin:$PATH
@@ -99,8 +99,8 @@ RUN conda init bash
 SHELL ["conda", "run", "-n", "gaussian_splatting", "/bin/bash", "-c"]
 
 # Install built CUDA extension wheels into the copied env
-RUN pip install --no-cache-dir /tmp/wheels/*.whl \
-    && rm -rf /tmp/wheels \
+RUN pip install --no-cache-dir /opt/wheels/*.whl \
+    && rm -rf /opt/wheels \
     && pip cache purge || true \
     && conda clean -afy \
     && rm -rf /root/.cache
