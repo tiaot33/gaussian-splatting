@@ -49,7 +49,8 @@ SHELL ["conda", "run", "-n", "gaussian_splatting", "/bin/bash", "-c"]
 # Build wheels for CUDA extensions and prepare environment content
 RUN pip install --no-cache-dir -U pip setuptools wheel \
     && pip install --no-cache-dir opencv-python joblib \
-    && conda install -y conda-forge::colmap \
+    && conda config --set channel_priority strict \
+    && conda install -y -c conda-forge 'colmap=*=*gpu*' \
     && conda remove -y ffmpeg \
     && mkdir -p /tmp/wheels \
     && cd submodules/diff-gaussian-rasterization && pip wheel . -w /tmp/wheels && cd - \
