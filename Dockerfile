@@ -58,6 +58,8 @@ RUN pip install --no-cache-dir -U pip setuptools wheel \
     && cd submodules/diff-gaussian-rasterization && pip wheel . -w /opt/wheels && cd - \
     && cd submodules/simple-knn && pip wheel . -w /opt/wheels && cd - \
     && cd submodules/fused-ssim && pip wheel . -w /opt/wheels && cd - \
+    && pip install --no-cache-dir /opt/wheels/*.whl \
+    && rm -rf /opt/wheels \
     && pip cache purge || true \
     && conda clean -afy \
     && rm -rf /root/.cache
@@ -84,9 +86,8 @@ RUN apt-get update \
 # Create runtime dir for Qt to avoid warnings and allow headless contexts
 RUN mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
 
-# Copy prebuilt conda env and wheels from builder
+# Copy prebuilt conda env from builder
 COPY --from=builder /opt/conda /opt/conda
-COPY --from=builder /opt/wheels /opt/wheels
 
 # PATH for conda tools
 ENV PATH=/opt/conda/bin:$PATH
@@ -97,13 +98,6 @@ COPY ./ ./
 # Ensure conda shell available for subsequent commands
 RUN conda init bash
 SHELL ["conda", "run", "-n", "gaussian_splatting", "/bin/bash", "-c"]
-
-# Install built CUDA extension wheels into the copied env
-RUN pip install --no-cache-dir /opt/wheels/*.whl \
-    && rm -rf /opt/wheels \
-    && pip cache purge || true \
-    && conda clean -afy \
-    && rm -rf /root/.cache
 
 WORKDIR /root/
 
