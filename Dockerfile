@@ -3,6 +3,8 @@ FROM nvidia/cuda:11.6.2-devel-ubuntu20.04 AS builder
 
 # Install base utilities for building (NVCC, compilers present in devel image)
 ENV DEBIAN_FRONTEND=noninteractive
+# Run Qt applications (e.g., COLMAP) headlessly during build if needed
+ENV QT_QPA_PLATFORM=offscreen
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         build-essential \
@@ -65,13 +67,22 @@ RUN pip install --no-cache-dir -U pip setuptools wheel \
 FROM nvidia/cuda:11.6.2-runtime-ubuntu20.04 AS runtime
 
 ENV DEBIAN_FRONTEND=noninteractive
+# Ensure Qt runs headlessly inside the container (no X server required)
+ENV QT_QPA_PLATFORM=offscreen
+ENV XDG_RUNTIME_DIR=/tmp/runtime-root
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libgl1 \
+        libegl1 \
+        libopengl0 \
+        libxkbcommon0 \
         libglib2.0-0 \
         ffmpeg \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
+
+# Create runtime dir for Qt to avoid warnings and allow headless contexts
+RUN mkdir -p "$XDG_RUNTIME_DIR" && chmod 700 "$XDG_RUNTIME_DIR"
 
 # Copy prebuilt conda env and wheels from builder
 COPY --from=builder /opt/conda /opt/conda
