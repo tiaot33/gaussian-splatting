@@ -53,8 +53,8 @@ RUN pip install --no-cache-dir -U pip setuptools wheel \
     && pip install --no-cache-dir opencv-python joblib \
     && conda config --set channel_priority strict \
     && ( \
-         conda install -y -c conda-forge 'colmap=*=*cuda*' \
-      || conda install -y -c conda-forge 'colmap=*=*gpu*' \
+         conda install -y -c conda-forge 'colmap=*=cuda*' \
+      || conda install -y -c conda-forge 'colmap=*=gpu*' \
       || conda install -y -c conda-forge colmap \
        ) \
     && conda remove -y ffmpeg \
@@ -102,9 +102,6 @@ COPY ./ ./
 # Ensure conda shell available for subsequent commands
 RUN conda init bash
 SHELL ["conda", "run", "-n", "gaussian_splatting", "/bin/bash", "-c"]
-
-WORKDIR /root/
-
 # Make the image generic: no default service is started.
 # Use `docker run -it <image> bash` for an interactive shell,
 # or append commands (optionally via `conda run -n gaussian_splatting`).
