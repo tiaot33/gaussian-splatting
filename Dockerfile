@@ -52,7 +52,11 @@ SHELL ["conda", "run", "-n", "gaussian_splatting", "/bin/bash", "-c"]
 RUN pip install --no-cache-dir -U pip setuptools wheel \
     && pip install --no-cache-dir opencv-python joblib \
     && conda config --set channel_priority strict \
-    && conda install -y -c conda-forge 'colmap=*=*gpu*' \
+    && ( \
+         conda install -y -c conda-forge 'colmap=*=*cuda*' \
+      || conda install -y -c conda-forge 'colmap=*=*gpu*' \
+      || conda install -y -c conda-forge colmap \
+       ) \
     && conda remove -y ffmpeg \
     && mkdir -p /opt/wheels \
     && cd submodules/diff-gaussian-rasterization && pip wheel . -w /opt/wheels && cd - \
