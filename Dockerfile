@@ -34,11 +34,14 @@ RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkg
 RUN conda env create -f environment.yml \
     && conda clean -afy
 RUN conda init bash
-#RUN echo "conda activate gaussian_splatting" >> ~/.bashrc
 SHELL ["conda", "run", "-n", "gaussian_splatting", "/bin/bash", "-c"]
 RUN conda install -y https://anaconda.org/conda-forge/colmap/3.8/download/linux-64/colmap-3.8-gpuh0e4589b_101.conda \
     && conda remove ffmpeg -y
 
+# Add entrypoint that activates the conda environment on container start
+COPY entrypoint.sh /usr/local/bin/gs-entrypoint.sh
+RUN chmod +x /usr/local/bin/gs-entrypoint.sh
 
-ENTRYPOINT ["conda", "run", "--no-capture-output", "-n", "gaussian_splatting"]
+
+ENTRYPOINT ["/usr/local/bin/gs-entrypoint.sh"]
 CMD ["bash"]
