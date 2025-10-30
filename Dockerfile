@@ -1,35 +1,41 @@
 # syntax=docker/dockerfile:1-labs
-FROM nvidia/cuda:11.6.2-devel-ubuntu20.04
 
-# Install base utilities
-ENV DEBIAN_FRONTEND=noninteractive
+##########
+# Builder
+##########
+FROM nvidia/cuda:11.6.2-devel-ubuntu20.04 AS builder
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    MAMBA_ROOT_PREFIX=/opt/conda \
+    MAMBA_NO_BANNER=1 \
+    PIP_NO_CACHE_DIR=1 \
+    TORCH_CUDA_ARCH_LIST="3.5;5.0;6.0;6.1;7.0;7.5;8.0;8.6+PTX" \
+    CONDA_OVERRIDE_CUDA=11.6
+
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update \
-    && apt-get install -y build-essential git curl ca-certificates ninja-build unzip libgl-dev ffmpeg \
+    && apt-get install -y --no-install-recommends \
+        build-essential \
+        git \
+        curl \
+        ca-certificates \
+        ninja-build \
+        unzip \
+        libgl-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install micromamba (per requirement: sh -c (curl -L micro.mamba.pm/install.sh))
-# micromamba binary will be placed in /usr/local/bin
+# Install micromamba (binary to /usr/bin/micromamba)
 RUN curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -xvj bin/micromamba
-
-# Configure micromamba root and quiet output
-ENV MAMBA_ROOT_PREFIX=/opt/conda
-ENV MAMBA_NO_BANNER=1
 
 WORKDIR /root/gaussian_splatting
 COPY ./ ./
 
-# Ensure submodules are present for pip local installs in environment.yml
-# Mark repo as safe to avoid "dubious ownership" errors when running as root
+# Ensure submodules are present for local pip installs in environment.yml
 RUN git config --global --add safe.directory /root/gaussian_splatting \
     && git submodule update --init --recursive
 
-ENV TORCH_CUDA_ARCH_LIST="3.5;5.0;6.0;6.1;7.0;7.5;8.0;8.6+PTX"
-ENV PIP_NO_CACHE_DIR=1
-
-# Create the conda environment using micromamba
 RUN --device=nvidia.com/gpu=all \
     --mount=type=cache,target=/opt/conda/pkgs \
     --mount=type=cache,target=/root/.cache/pip \
@@ -41,8 +47,40 @@ RUN --device=nvidia.com/gpu=all \
     && ( micromamba remove -y ffmpeg || true ) \
     && micromamba clean -a -y
 
-# Add entrypoint that activates the environment on container start
-COPY entrypoint.sh /usr/local/bin/gs-entrypoint.sh
+
+##########
+# Runtime
+##########
+FROM nvidia/cuda:11.6.2-runtime-ubuntu20.04 AS runtime
+
+ENV DEBIAN_FRONTEND=noninteractive \
+    MAMBA_ROOT_PREFIX=/opt/conda \
+    MAMBA_NO_BANNER=1
+
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update \
+    && apt-get install -y --no-install-recommends \
+        libgl1 \
+        libegl1 \
+        libopengl0 \
+        libxkbcommon0 \
+        libglib2.0-0 \
+        ffmpeg \
+        ca-certificates \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy prebuilt env and project files from builder
+COPY --from=builder /opt/conda /opt/conda
+ENV PATH=/opt/conda/envs/gaussian_splatting/bin:/opt/conda/bin:$PATH
+
+WORKDIR /root/gaussian_splatting
+COPY --from=builder /root/gaussian_splatting /root/gaussian_splatting
+
+# Provide micromamba binary and entrypoint that activates env
+COPY --from=builder /usr/bin/micromamba /usr/bin/micromamba
+COPY --from=builder /root/gaussian_splatting/entrypoint.sh /usr/local/bin/gs-entrypoint.sh
 RUN chmod +x /usr/local/bin/gs-entrypoint.sh
 
 ENTRYPOINT ["/usr/local/bin/gs-entrypoint.sh"]
