@@ -1,20 +1,22 @@
+# syntax=docker/dockerfile:1-labs
 FROM nvidia/cuda:11.6.2-devel-ubuntu20.04
 
 # Install base utilities
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update \
-    && apt-get install -y build-essential wget git ninja-build unzip libgl-dev ffmpeg\
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update \
+    && apt-get install -y build-essential git curl ca-certificates ninja-build unzip libgl-dev ffmpeg \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# Install miniconda
-ENV CONDA_DIR=/opt/conda
-RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh \
-    && /bin/bash /tmp/miniconda.sh -b -p /opt/conda \
-    && rm -f /tmp/miniconda.sh
+# Install micromamba (per requirement: sh -c (curl -L micro.mamba.pm/install.sh))
+# micromamba binary will be placed in /usr/local/bin
+RUN curl -Ls https://micro.mamba.pm/api/micromamba/linux-64/latest | tar -xvj bin/micromamba
 
-# Put conda in path so we can use conda activate
-ENV PATH=$CONDA_DIR/bin:$PATH
+# Configure micromamba root and quiet output
+ENV MAMBA_ROOT_PREFIX=/opt/conda
+ENV MAMBA_NO_BANNER=1
 
 WORKDIR /root/gaussian_splatting
 COPY ./ ./
@@ -26,22 +28,22 @@ RUN git config --global --add safe.directory /root/gaussian_splatting \
 
 ENV TORCH_CUDA_ARCH_LIST="3.5;5.0;6.0;6.1;7.0;7.5;8.0;8.6+PTX"
 ENV PIP_NO_CACHE_DIR=1
-RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main \
-    && conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r \
-    && conda update -n base -y conda \
-    && conda install -n base -y conda-libmamba-solver \
-    && conda config --set solver libmamba 
-RUN conda env create -f environment.yml \
-    && conda clean -afy
-RUN conda init bash
-SHELL ["conda", "run", "-n", "gaussian_splatting", "/bin/bash", "-c"]
-RUN conda install -y https://anaconda.org/conda-forge/colmap/3.8/download/linux-64/colmap-3.8-gpuh0e4589b_101.conda \
-    && conda remove ffmpeg -y
 
-# Add entrypoint that activates the conda environment on container start
+# Create the conda environment using micromamba
+RUN --device=nvidia.com/gpu=all \
+    --mount=type=cache,target=/opt/conda/pkgs \
+    --mount=type=cache,target=/root/.cache/pip \
+    micromamba create -y -n gaussian_splatting -f environment.yml \
+    && ( \
+    micromamba install -y -n gaussian_splatting -c conda-forge "cuda-version=11.6" "colmap=3.8=gpu*" \
+    || micromamba install -y -c conda-forge colmap \
+    ) \
+    && ( micromamba remove -y ffmpeg || true ) \
+    && micromamba clean -a -y
+
+# Add entrypoint that activates the environment on container start
 COPY entrypoint.sh /usr/local/bin/gs-entrypoint.sh
 RUN chmod +x /usr/local/bin/gs-entrypoint.sh
-
 
 ENTRYPOINT ["/usr/local/bin/gs-entrypoint.sh"]
 CMD ["bash"]
